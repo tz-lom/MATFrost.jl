@@ -5,6 +5,9 @@
 <!-- [![windows](https://github.com/ASML-Labs/MATFrost.jl/actions/workflows/run-tests-windows.yml/badge.svg)](https://github.com/ASML-Labs/MATFrost.jl/actions/workflows/run-tests-windows.yml) -->
 <!-- [![ubuntu](https://github.com/ASML-Labs/MATFrost.jl/actions/workflows/run-tests-ubuntu.yml/badge.svg)](https://github.com/ASML-Labs/MATFrost.jl/actions/workflows/run-tests-ubuntu.yml) -->
 
+> [!IMPORTANT]
+> Linux support in development. New revision will run Julia completely isolated into its own process, thereby preventing any library collisions.
+
 
 # MATFrost.jl - Embedding Julia in MATLAB
 
