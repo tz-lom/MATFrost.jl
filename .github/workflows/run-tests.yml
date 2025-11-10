@@ -27,13 +27,16 @@ on:
       - '.github/workflows/run-tests-reusable.yml'
 
 jobs:
-  # Linux disabled due to incompatability. 
-  #
-  # ubuntu:
-  #   uses: ./.github/workflows/run-tests-ubuntu.yml
-  #   if: ${{ ((github.event_name == 'pull_request') && !github.event.pull_request.draft) || (github.event_name == 'push') || (github.event_name == 'workflow_dispatch') }}
-  #   secrets: inherit
-  windows:
-    uses: ./.github/workflows/run-tests-windows.yml
+  tests:
+    uses: ./.github/workflows/run-tests-reusable.yml    
     if: ${{ ((github.event_name == 'pull_request') && !github.event.pull_request.draft) || (github.event_name == 'push') || (github.event_name == 'workflow_dispatch') }}
     secrets: inherit
+    strategy:
+      fail-fast: false
+      matrix:
+        matlab-version: ['R2021b', 'R2022b', 'R2024b', 'R2025a']
+        os: ['windows-latest']
+    with:
+      os: ${{ matrix.os }}
+      matlab-version: ${{ matrix.matlab-version }}
+      mex-recompile: true
