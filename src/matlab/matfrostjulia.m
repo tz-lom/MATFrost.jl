@@ -112,22 +112,19 @@ classdef matfrostjulia < handle & matlab.mixin.indexing.RedefinesDot
     methods (Access=protected)
         function varargout = dotReference(obj,indexOp)
             % Calls into the loaded julia package.
-            
             if indexOp(end).Type ~= matlab.indexing.IndexingOperationType.Paren
                 throw(MException("matfrostjulia:invalidCallSignature", "Call signature is missing parentheses."));
             end
-
             fully_qualified_name_arr = arrayfun(@(in) string(in.Name), indexOp(1:end-1));
-             
-            args = indexOp(end).Indices;
-
+            % Remove any name-value pair for 'signature' from the call-site indices so
+            % that parseArguments only sees the real positional arguments.
+            [arguments, signature] = parseArguments( indexOp(end).Indices{:} );
+            % This is the object being sent to MATLAB 
             callstruct.id = obj.id;
             callstruct.action = "CALL";
-
             callmeta.fully_qualified_name = join(fully_qualified_name_arr, ".");
-
-            % This is the object being sent to MATLAB 
-            callstruct.callstruct = {callmeta; args(:)};
+            callmeta.signature = signature;
+            callstruct.callstruct = {callmeta; arguments(:)};
 
             if obj.USE_MEXHOST
                 jlo = obj.mh.feval("matfrostjuliacall", callstruct);
@@ -147,6 +144,18 @@ classdef matfrostjulia < handle & matlab.mixin.indexing.RedefinesDot
                 end
             end
 
+            function [varargin, signature] = parseArguments(varargin)
+                % Extracts 'signature' name-value pair if present, leaves other arguments untouched.
+                signature = "";
+                possibleKey = find(cellfun(@(x) ischar(x) || isstring(x), varargin));
+                isKey = cellfun(@(x) isequal(x, "signature"),varargin(possibleKey));
+                idx = possibleKey(find(isKey, 1, 'first'));
+                if ~isempty(idx) && idx < numel(varargin)
+                    signature = varargin{idx+1};
+                    varargin(idx:idx+1) = [];
+                end
+            end
+                
         end
 
         function obj = dotAssign(obj,indexOp,varargin)
