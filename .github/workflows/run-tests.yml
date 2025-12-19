@@ -23,7 +23,6 @@ jobs:
     name: Check testing precondition
     runs-on: ubuntu-latest
     # Do not run in forked repositories
-    if: github.repository == 'ASML-labs/MATFrost.jl' 
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -53,7 +52,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/run-tests-reusable.yml
     with:
-      os: windows-latest
+      os: ubuntu-latest # todo: test on windows too
       matlab-version: R2021b
       mex-recompile: true
       julia-versions: ${{ github.event.pull_request.draft && '1.12' || '1.7,1.8,1.9,1.10,1.11,1.12' }}
