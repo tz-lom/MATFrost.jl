@@ -29,30 +29,16 @@ jobs:
         uses: tj-actions/changed-files@v47
         with:
           files_yaml: |
-            test:
+            code:
               - test/**
               - .github/workflows/run-tests.yml
               - .github/workflows/run-tests-reusable.yml
               - .github/workflows/run-tests-dispatch.yml
-            src:
               - src/**
               - Artifacts.toml
               - Project.toml
     outputs:
-      test_changed: ${{ steps.changed-files-yaml.outputs.test_any_changed }}
-      src_changed: ${{ steps.changed-files-yaml.outputs.src_any_changed }}
-
-  test-single:
-    needs: precondition
-    name: Run tests on a single configuration
-    if: ${{ needs.precondition.outputs.test_changed == 'true' || needs.precondition.outputs.src_changed == 'true' || github.event_name == 'schedule'  }}
-    secrets: inherit
-    uses: ./.github/workflows/run-tests-reusable.yml
-    with:
-      os: windows-latest
-      matlab-version: R2021b
-      mex-recompile: true
-      julia-versions: ${{ github.event.pull_request.draft && '1.12' || '1.7,1.8,1.9,1.10,1.11,1.12' }}
+      code_changed: ${{ steps.changed-files-yaml.outputs.code_any_changed }}
 
   test-matrix:
     name: Run tests on multiple configurations
@@ -63,18 +49,33 @@ jobs:
       fail-fast: false
       matrix:
         matlab-version: ['R2021b', 'R2022b', 'R2023b', 'R2024b', 'R2025b']
+        julia-version: ['1.7', '1.8', '1.9', '1.10', '1.11', '1.12']
         os: ['windows-latest']
-        exclude:
-          - os: 'windows-latest'
-            matlab-version: 'R2021b'  # Already tested in test-single job
     with:
       os: ${{ matrix.os }}
       matlab-version: ${{ matrix.matlab-version }}
       mex-recompile: true
-      julia-versions: ${{ github.event.pull_request.draft && '1.12' || '1.7,1.8,1.9,1.10,1.11,1.12' }}
+      julia-version: ${{ matrix.julia-version }}
+
+  test-single:
+    needs: [precondition, test-matrix]
+    name: Run tests on a single configuration
+    if: |
+      always() &&
+      needs.precondition.outputs.code_changed == 'true' && needs.test-matrix.result == 'skipped'
+    secrets: inherit
+    uses: ./.github/workflows/run-tests-reusable.yml
+    strategy:
+      matrix:
+        julia-version: ['1.7', '1.12']
+    with:
+      os: windows-latest
+      matlab-version: R2021b
+      mex-recompile: true
+      julia-version: ${{ matrix.julia-version }}
 
   summary:
-    needs: [precondition, test-single, test-matrix]
+    needs: [test-matrix, test-single]
     name: Test summary
     runs-on: ubuntu-latest
     if: (!cancelled())

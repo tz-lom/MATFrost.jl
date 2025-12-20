@@ -13,10 +13,10 @@ on:
         description: "MATLAB version"
         default: "R2022b"
         type: string
-      julia-versions:
+      julia-version:
         required: false
-        description: "Comma-separated Julia versions to test"
-        default: "1.7,1.8,1.9,1.10,1.11,1.12"
+        description: "Julia version to test"
+        default: "1.12"
         type: string
       mex-recompile:
         required: true
@@ -24,83 +24,30 @@ on:
         type: boolean
         default: true
 
-env:
-  GCC_VERSION: 10
-
 jobs:
   test:
     runs-on:  ${{ inputs.os }}
-    name: ${{ inputs.os }}-${{ inputs.matlab-version }}-recompile-${{ inputs.mex-recompile }}
+    name: ${{ inputs.os }}-${{ inputs.matlab-version }}-julia-${{ inputs.julia-version }}-recompile-${{ inputs.mex-recompile }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v6
 
-      - name: Cache GCC installation on Linux
-        if: ${{ startsWith(inputs.os , 'ubuntu') }}
-        uses: actions/cache@v4
-        id: cache-gcc
+      - name: Setup Julia
+        uses: julia-actions/setup-julia@v2
         with:
-          path: |
-            /usr/bin/gcc-${{ env.GCC_VERSION }}
-            /usr/bin/g++-${{ env.GCC_VERSION }}
-            /usr/lib/gcc
-          key: ${{ inputs.os }}-${{ inputs.matlab-version }}-gcc-${{ env.GCC_VERSION }}
+          version: ${{ inputs.julia-version }}
+      - uses: julia-actions/cache@v2
+      - uses: julia-actions/julia-buildpkg@v1
 
-      - name: Install GCC on Linux
-        if: ${{ startsWith(inputs.os , 'ubuntu') && steps.cache-gcc.outputs.cache-hit != 'true' }}
-        run: |
-          sudo apt-get install g++-${{ env.GCC_VERSION }}
-
-      - name: Configure compatible linux GCC compiler on Linux
-        if: ${{ startsWith(inputs.os , 'ubuntu') }}
-        run: |
-          sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-${{ env.GCC_VERSION }} 100
-          sudo update-alternatives --config g++
-          sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-${{ env.GCC_VERSION }} 100
-          sudo update-alternatives --config gcc
-          g++ --version
-          gcc --version
-
-      - name: Setup MSYS2 on Windows
-        uses: msys2/setup-msys2@v2
-        if: ${{ inputs.mex-recompile && startsWith(inputs.os , 'windows') }}
-        id: msys2
-        with:
-          msystem: UCRT64
-          update: true
-          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-toolchain
-          cache: true
+      - name: Test Julia
+        uses: julia-actions/julia-runtest@v1
 
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v2
         with:
           release: ${{ inputs.matlab-version }}
+          products: MATLAB_Support_for_MinGW-w64_C/C++_Compiler
           cache: true
-
-      - name: Get latest Julia version
-        id: julia-version
-        run: |
-          VERSIONS="${{ inputs.julia-versions }}"
-          LATEST="${VERSIONS##*,}"
-          echo "latest=$LATEST" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Setup Juliaup
-        uses: julia-actions/install-juliaup@v2
-        with:
-          channel: '${{ steps.julia-version.outputs.latest }}'
-
-      - name: Add remaining Julia versions to test
-        run: |
-          IFS=',' read -ra VERSIONS <<< "${{ inputs.julia-versions }}"
-          LATEST="${{ steps.julia-version.outputs.latest }}"
-          for version in "${VERSIONS[@]}"; do
-            if [ "$version" != "$LATEST" ]; then
-              juliaup add "$version"
-            fi
-          done
-        shell: bash
-
-      - name: Checkout
-        uses: actions/checkout@v6
 
       - name: Configure precompiled MEX-artifacts
         if: ${{ !inputs.mex-recompile }}
@@ -110,15 +57,13 @@ jobs:
       - name: Build MATFrost MEX
         uses: matlab-actions/run-command@v2
         if: ${{ inputs.mex-recompile && startsWith(inputs.os , 'windows')}}
-        env:
-          MW_MINGW64_LOC: ${{ steps.msys2.outputs.msys2-location }}\ucrt64
         with:
           command: addpath(genpath("src")) ; matfrostmake() ; copyfile("src/matfrostjuliacall/bin/*", "src/matlab/private")
         
       - name: Run tests
         uses: matlab-actions/run-tests@v2
         env:
-          JULIA_VERSIONS: ${{ inputs.julia-versions }}
+          JULIA_VERSIONS: ${{ inputs.julia-version }}
         with:
           source-folder: 'src'
           select-by-folder: 'test'
