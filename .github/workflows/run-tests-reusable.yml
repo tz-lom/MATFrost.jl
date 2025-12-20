@@ -24,6 +24,10 @@ on:
         type: boolean
         default: true
 
+permissions:
+  actions: write
+  contents: read
+
 jobs:
   test:
     runs-on:  ${{ inputs.os }}
@@ -32,21 +36,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup Julia
-        uses: julia-actions/setup-julia@v2
+      - name: Setup Juliaup
+        uses: julia-actions/install-juliaup@v2
         with:
-          version: ${{ inputs.julia-version }}
+          channel: ${{ inputs.julia-version }}
+
       - uses: julia-actions/cache@v2
+        with:
+          cache-name: julia-cache;version=${{ inputs.julia-version }}
+          include-matrix: false
       - uses: julia-actions/julia-buildpkg@v1
 
       - name: Test Julia
         uses: julia-actions/julia-runtest@v1
 
+      - name: Setup MSYS2 on Windows
+        id: msys2
+        uses: msys2/setup-msys2@v2
+        if: ${{ inputs.mex-recompile && startsWith(inputs.os , 'windows') }}
+        with:
+          msystem: UCRT64
+          update: true
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-toolchain
+          cache: true
+          
+      # - name: Determine MATLAB product
+      #   id: matlab-product
+      #   shell: bash
+      #   run: |
+      #     version="${{ inputs.matlab-version }}"
+      #     year=$(echo "$version" | sed 's/R\([0-9]\{4\}\)[ab]/\1/')
+      #     if [ "$year" -gt 2023 ]; then
+      #       echo "product=MATLAB_Support_for_MinGW-w64_C/C++/Fortran_Compiler" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "product=MATLAB_Support_for_MinGW-w64_C/C++_Compiler" >> $GITHUB_OUTPUT
+      #     fi
+
       - name: Set up MATLAB
         uses: matlab-actions/setup-matlab@v2
         with:
           release: ${{ inputs.matlab-version }}
-          products: MATLAB_Support_for_MinGW-w64_C/C++_Compiler
+          # products: ${{ steps.matlab-product.outputs.product }}
           cache: true
 
       - name: Configure precompiled MEX-artifacts
@@ -57,6 +87,8 @@ jobs:
       - name: Build MATFrost MEX
         uses: matlab-actions/run-command@v2
         if: ${{ inputs.mex-recompile && startsWith(inputs.os , 'windows')}}
+        env:
+          MW_MINGW64_LOC: ${{ steps.msys2.outputs.msys2-location }}\ucrt64
         with:
           command: addpath(genpath("src")) ; matfrostmake() ; copyfile("src/matfrostjuliacall/bin/*", "src/matlab/private")
         
@@ -76,4 +108,4 @@ jobs:
         uses: actions/upload-artifact@v5
         with: 
           path: test-results
-          name: results-${{ inputs.os }}-${{ inputs.matlab-version }}
+          name: results-${{ inputs.os }}-${{ inputs.matlab-version }}-${{ inputs.julia-version }}
