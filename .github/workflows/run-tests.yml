@@ -66,6 +66,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/run-tests-reusable.yml
     strategy:
+      fail-fast: false
       matrix:
         julia-version: ['1.7', '1.12']
     with:
