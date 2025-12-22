@@ -45,7 +45,7 @@ classdef matfrostjulia < handle & matlab.mixin.indexing.RedefinesDot
             end
             
             obj.id = uint64(randi(1e9, 'int32'));
-            obj.socket = argstruct.socket;
+            obj.socket = "\\.\pipe\matfrost\"+string(obj.id);
             obj.timeout = argstruct.timeout;
             obj.project = argstruct.project;
 
