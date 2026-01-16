@@ -141,17 +141,24 @@ public:
         for (size_t i = 0; i < niters; i++) {
             if (socket->wait_for_readable(timeout)) {
                 // Data available to read
-                auto jlout = MATFrost::Read::read(socket);
+                auto jlout = MATFrost::Read::read_root(socket);
 
                 server->dump_logging(matlab);
 
-                return jlout;
-            } else {
-                server->dump_logging(matlab);
+                if( auto ostream = std::get_if<MATFrost::Read::OStreamData>(&jlout))
+                {
+                    matlab->feval(u"disp", 0, std::vector<matlab::data::Array>({ostream->content}));
+                }
+                else
+                {
+                    return std::get<matlab::data::Array>(jlout);
+                }
+            } 
+            server->dump_logging(matlab);
 
-                matlab->feval(u"pause", 0, std::vector<matlab::data::Array>
-                    ({ factory.createScalar(0.0)})); // No-operation added to be able interrupt.
-            }
+            matlab->feval(u"pause", 0, std::vector<matlab::data::Array>
+                ({ factory.createScalar(0.0)})); // No-operation added to be able interrupt.
+            
         }
 
         throw(matlab::engine::MATLABException("MATFrost server timeout"));

@@ -75,6 +75,12 @@ const CLEAR_BUFFER = Vector{UInt8}(undef, 2<<15)
     nothing
 end
 
+function read_matfrostio(io::IO, header) :: MATFrostIO
+    stream = read(io, UInt8)
+    content = read_string!(io)
+    MATFrostIO(stream, content)
+end
+
 @noinline function read_matfrostarray!(io::IO) :: MATFrostArrayAbstract
     header = read_matfrostarray_header!(io)
 
@@ -143,6 +149,8 @@ end
         read_matfrostarray_primitive!(io, header, Complex{Int64})
     elseif header.type == COMPLEX_UINT64
         read_matfrostarray_primitive!(io, header, Complex{UInt64})
+    elseif header.type == MATLAB_IO
+        read_matfrostio(io, header)
     else
         error("Unrecoverable crash - MATFrost communication channel corrupted at read side")
     end

@@ -32,17 +32,84 @@ struct MATFrostResultMATLAB{T}
 end
 
 
+using Base.Threads
+
+struct LocableIO{T<:IO} <: IO
+    io::T
+    lock::ReentrantLock
+end
+
+Base.pipe_writer(lockio::LocableIO) = lock(lockio.lock) do; Base.pipe_writer(lockio.io); end
+Base.pipe_reader(lockio::LocableIO) = lock(lockio.lock) do; Base.pipe_reader(lockio.io); end
+Base.getindex(lockio::LocableIO, i) = lock(lockio.lock) do; Base.getindex(lockio.io, i); end
+Base.haskey(lockio::LocableIO, k) = lock(lockio.lock) do; Base.haskey(lockio.io, k); end
+Base.get(lockio::LocableIO, k, d) = lock(lockio.lock) do; Base.get(lockio.io, k, d); end
+Base.keys(lockio::LocableIO) = lock(lockio.lock) do; Base.keys(lockio.io); end
+Base.setindex!(lockio::LocableIO, v, k) = lock(lockio.lock) do; Base.setindex!(lockio.io, v, k); end
+Base.read(lockio::LocableIO, t::Type{UInt8}) = lock(lockio.lock) do; Base.read(lockio.io, t); end
+Base.write(lockio::LocableIO, x::UInt8) = lock(lockio.lock) do; Base.write(lockio.io, x); end
+Base.flush(lockio::LocableIO) = lock(lockio.lock) do; flush(lockio.io); end
+
+function redirect_streams(f::Function, io)
+    original_stdout = stdout
+
+    function stream_redirect(rd, stream_id)
+        return Threads.@spawn begin
+            # write(original_stdout, "---- started read $(stream_id) on $(rd)\n")
+
+            while(!eof(rd))
+                local str = readline(rd, keep=true)
+                # write(original_stdout, "Redirected Stream $(stream_id): ", str)
+                write_matfrostarray!(io,  MATFrostIO(stream_id, str))
+            end
+            # write(original_stdout, "---- ended read $(stream_id) on $(rd)\n")
+        end
+    end
+
+    stdout_pipe = Base.link_pipe!(Pipe(), reader_supports_async=true, writer_supports_async=true)
+    stdout_task = stream_redirect(stdout_pipe, 1)
+    try
+    redirect_stdout(stdout_pipe) do
+        stderr_pipe = Base.link_pipe!(Pipe(), reader_supports_async=true, writer_supports_async=true)
+        stderr_task = stream_redirect(stderr_pipe, 2)
+        try
+            redirect_stderr(stderr_pipe) do
+                f()
+            end
+        finally
+            close(stderr_pipe)
+            wait(stderr_task)
+        end
+    end
+    finally
+        close(stdout_pipe)
+        wait(stdout_task)
+    end
+end
+
+
 AmbiguityError(f::Function) = MATFrostException("matfrostjulia:call:ambigiousFunction",ambiguous_method_error(f))
 """
 This function is the basis of the MATFrostServer.
 """
-function MATFrost.matfrostserve(host::String, port::Int)
+function MATFrost.matfrostserve(host::String, port::Int; redirect_io::Bool=false)
     client = connect(host, port)
-    println("MATFrost server connected. Ready for requests.")
-    
-    try 
+
+    function server_loop(io) 
+        println("MATFrost server connected. Ready for requests.")
         while true
-            callsequence(client)
+            callsequence(io)
+        end
+    end
+        
+    try 
+        if redirect_io
+            lockable = LocableIO(client, ReentrantLock())
+            redirect_streams(lockable) do
+                server_loop(lockable)
+            end
+        else
+            server_loop(client)
         end
     catch e
         if e isa InterruptException

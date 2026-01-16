@@ -1,6 +1,6 @@
 module _Types
 
-export MATFrostArrayAbstract, MATFrostArrayEmpty, MATFrostArrayPrimitive, MATFrostArrayString, MATFrostArrayCell, MATFrostArrayStruct, MATFrostException, MATFrostConversionException
+export MATFrostArrayAbstract, MATFrostArrayEmpty, MATFrostArrayPrimitive, MATFrostArrayString, MATFrostArrayCell, MATFrostArrayStruct, MATFrostException, MATFrostConversionException, MATFrostIO
 
 abstract type MATFrostArrayAbstract end
 
@@ -37,6 +37,11 @@ struct MATFrostConversionException <: Exception
     id::String
     message::String
     stacktrace::Vector{Any}
+end
+
+struct MATFrostIO <: MATFrostArrayAbstract
+    stream::UInt8 # 1 for stdout, 2 for stderr
+    content::String 
 end
 
 end
