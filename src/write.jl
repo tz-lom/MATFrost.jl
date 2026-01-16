@@ -74,6 +74,13 @@ end
     end
 end
 
+function write_matfrostio(io::IO, matio::MATFrostIO)
+    write(io, MATLAB_IO)
+    write(io, Int64(0)) # number of elements
+    write(io, matio.stream)
+    write_matfrost_string!(io, matio.content)
+end
+
 @noinline function write_matfrostarray!(io::IO, @nospecialize(marr::MATFrostArrayAbstract))
     if marr isa MATFrostArrayEmpty
         write_matfrostarray_empty!(io, marr)
@@ -133,6 +140,8 @@ end
         write_matfrostarray_primitive!(io, marr)
     elseif marr isa MATFrostArrayPrimitive{Complex{UInt64}}
         write_matfrostarray_primitive!(io, marr)
+    elseif marr isa MATFrostIO
+        write_matfrostio(io, marr)
     else
         error("Unrecoverable crash - MATFrost communication channel corrupted at write side")
     end

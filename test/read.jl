@@ -93,6 +93,11 @@ end
     test_matfrostarray_read(v_write, v_exp)
 end
 
+@testset "Primitives-Behavior-IO" begin
+    v_exp = MATFrostIO(2, "hello")
+    test_matfrostarray_read(v_exp, v_exp; raw=true)
+end
+
 @testset "Primitives-Behavior-Boolean" begin
     @testset "Read-Scalar" begin
         v_write = true
